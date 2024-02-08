@@ -1,0 +1,167 @@
+#!/bin/bash
+# tcp load balancer by mehdi sadighian
+# https://msadighian.com
+# mehdi.sadighian@hotmail.com
+
+
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+
+TCP_PORT_TO_LOAD_BALANCE=480
+
+NUMBER_OF_SERVERS=3
+NUMBER_OF_ACTIVER_SERVERS=$NUMBER_OF_SERVERS
+ACTIVE_SERVERS_CHANGED=false
+
+SERVER1="172.16.0.2"
+SERVER1_PORT="443"
+
+SERVER2="172.16.0.3"
+SERVER2_PORT="443"
+
+SERVER3="172.16.0.4"
+SERVER3_PORT="443"
+
+ACTIVE_SERVERS_ARRAY=()
+ACTIVE_SERVERS_PORT_ARRAY=()
+
+function initialze () {
+
+iptables -t nat -D PREROUTING -p tcp --dport $TCP_PORT_TO_LOAD_BALANCE -j LOAD-BALANCE
+iptables -t nat -F LOAD-BALANCE
+iptables -t nat -X LOAD-BALANCE
+
+iptables -t nat -N LOAD-BALANCE
+iptables -t nat -I PREROUTING -p tcp --dport $TCP_PORT_TO_LOAD_BALANCE -j LOAD-BALANCE
+
+
+#initialize
+}
+
+function check_servers_status () {
+
+n=1
+
+ACTIVE_SERVERS_ARRAY=()
+ACTIVE_SERVERS_PORT_ARRAY=()
+
+while [ $n -le $NUMBER_OF_SERVERS ]
+do
+
+SS=SERVER${n}
+SERVER_IP=${!SS}
+
+SP=SERVER${n}_PORT
+SERVER_PORT=${!SP}
+
+if nc -zv -w30 $SERVER_IP $SERVER_PORT <<< '' &> /dev/null
+then
+ACTIVE_SERVERS_ARRAY+=($SERVER_IP)
+ACTIVE_SERVERS_PORT_ARRAY+=($SERVER_PORT)
+echo $SERVER_IP $SERVER_PORT OPEN
+else
+echo $SERVER_IP $SERVER_PORT CLOSE
+fi
+
+n=$((n+1))
+done
+
+SIZE=${#ACTIVE_SERVERS_ARRAY[@]}
+
+if [ "$SIZE" != "$NUMBER_OF_ACTIVER_SERVERS" ]; then
+ACTIVE_SERVERS_CHANGED=true
+else
+ACTIVE_SERVERS_CHANGED=false
+fi
+
+NUMBER_OF_ACTIVER_SERVERS=$SIZE
+#check_servers_status
+}
+
+function load_balance () {
+
+echo
+echo "Load Balancing For:"
+#echo "${ACTIVE_SERVERS_ARRAY[@]}"
+#echo "${ACTIVE_SERVERS_PORT_ARRAY[@]}"
+
+for i in "${!ACTIVE_SERVERS_ARRAY[@]}"; do
+  printf "${ACTIVE_SERVERS_ARRAY[i]}:%s\n" "${ACTIVE_SERVERS_PORT_ARRAY[i]}"
+done
+
+m=$NUMBER_OF_ACTIVER_SERVERS
+
+for i in "${!ACTIVE_SERVERS_ARRAY[@]}"; do
+
+TARGET="DNAT"
+DST=${ACTIVE_SERVERS_ARRAY[i]}:${ACTIVE_SERVERS_PORT_ARRAY[i]}
+
+#DST=${ACTIVE_SERVERS_PORT_ARRAY[i]}
+#TARGET="REDIRECT"
+
+iptables -t nat -A LOAD-BALANCE -p tcp --dport $TCP_PORT_TO_LOAD_BALANCE \
+-m state --state NEW -m statistic --mode nth \
+--every $m --packet 0 -j $TARGET --to $DST
+
+m=$((m-1))
+done
+
+iptables -t nat -A LOAD-BALANCE -j RETURN
+
+#load_balance
+}
+
+function flush_table() {
+
+iptables -t nat -F LOAD-BALANCE
+
+#flush_table
+}
+
+function print () {
+
+iptables -t nat -L -nxv
+
+#print
+}
+
+#main
+echo "##########"
+echo "Load Balancer By Mehdi Sadighian"
+echo "##########"
+
+echo "Initializing"
+initialze
+echo "Initialize Done"
+
+echo
+echo "Checking Servers Status"
+check_servers_status
+
+load_balance
+
+#print
+
+sleep_interval=10
+
+while true
+do
+
+sleep $sleep_interval
+
+echo
+echo "Checking Servers Status"
+check_servers_status
+
+if $ACTIVE_SERVERS_CHANGED
+then
+
+echo
+echo "Activer Servers Changed"
+echo "Reblancing"
+
+flush_table
+load_balance
+
+fi
+done
