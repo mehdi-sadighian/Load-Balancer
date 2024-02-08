@@ -7,25 +7,25 @@
 
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 
-TCP_PORT_TO_LOAD_BALANCE=480
+TCP_PORT_TO_LOAD_BALANCE=450
 
 NUMBER_OF_SERVERS=3
-NUMBER_OF_ACTIVER_SERVERS=$NUMBER_OF_SERVERS
+NUMBER_OF_ACTIVE_SERVERS=$NUMBER_OF_SERVERS
 ACTIVE_SERVERS_CHANGED=false
 
-SERVER1="172.16.0.2"
+SERVER1="172.17.0.2"
 SERVER1_PORT="443"
 
-SERVER2="172.16.0.3"
+SERVER2="172.17.0.4"
 SERVER2_PORT="443"
 
-SERVER3="172.16.0.4"
+SERVER3="172.17.0.5"
 SERVER3_PORT="443"
 
 ACTIVE_SERVERS_ARRAY=()
 ACTIVE_SERVERS_PORT_ARRAY=()
 
-function initialze () {
+function initialize () {
 
 iptables -t nat -D PREROUTING -p tcp --dport $TCP_PORT_TO_LOAD_BALANCE -j LOAD-BALANCE
 iptables -t nat -F LOAD-BALANCE
@@ -68,13 +68,13 @@ done
 
 SIZE=${#ACTIVE_SERVERS_ARRAY[@]}
 
-if [ "$SIZE" != "$NUMBER_OF_ACTIVER_SERVERS" ]; then
+if [ "$SIZE" != "$NUMBER_OF_ACTIVE_SERVERS" ]; then
 ACTIVE_SERVERS_CHANGED=true
 else
 ACTIVE_SERVERS_CHANGED=false
 fi
 
-NUMBER_OF_ACTIVER_SERVERS=$SIZE
+NUMBER_OF_ACTIVE_SERVERS=$SIZE
 #check_servers_status
 }
 
@@ -89,7 +89,7 @@ for i in "${!ACTIVE_SERVERS_ARRAY[@]}"; do
   printf "${ACTIVE_SERVERS_ARRAY[i]}:%s\n" "${ACTIVE_SERVERS_PORT_ARRAY[i]}"
 done
 
-m=$NUMBER_OF_ACTIVER_SERVERS
+m=$NUMBER_OF_ACTIVE_SERVERS
 
 for i in "${!ACTIVE_SERVERS_ARRAY[@]}"; do
 
@@ -131,8 +131,8 @@ echo "Load Balancer By Mehdi Sadighian"
 echo "##########"
 
 echo "Initializing"
-initialze
-echo "Initialize Done"
+initialize
+echo "initialize Done"
 
 echo
 echo "Checking Servers Status"
