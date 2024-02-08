@@ -1,0 +1,6 @@
+load balancer using iptbales nth and static module
+checks server if the port is open ro not, then reblances active servers
+
+chmod 755 load-balance
+
+nohup ./load-balance > load-balancer.log &
